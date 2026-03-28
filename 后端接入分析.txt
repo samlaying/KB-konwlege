@@ -1,0 +1,125 @@
+知识库问答系统 — 接入后端分析报告
+====================================
+
+一、现状：100% 纯前端 Mock
+--------------------------
+
+| 问题                 | 位置                        | 说明                                          |
+|----------------------|-----------------------------|-----------------------------------------------|
+| API 层为空           | services/api.ts             | 文件内容为空                                  |
+| 全部数据是 mock      | store/index.ts:33-154       | mockThemes、mockDocuments、mockConversations 硬编码 |
+| 聊天回复是假的       | ChatPage.tsx:48-162         | simulateStreamingResponse() 按主题名返回固定文本 |
+| 文件上传被阻止       | DocumentsPage.tsx:298       | beforeUpload={() => false} 只取文件信息不真正上传 |
+| 索引是假的           | DocumentsPage.tsx:93-104    | setTimeout 模拟 pending→indexing→done         |
+| 设置只存内存         | SettingsPage.tsx            | Zustand 内存状态，刷新即丢失                   |
+| 无代理配置           | vite.config.ts              | 没有 /api 代理到后端                          |
+
+
+二、需要改造的 6 个层面
+-----------------------
+
+1. services/api.ts — 建立 API 层
+
+   需要用已安装的 axios 创建完整的请求层：
+   - baseURL 配置
+   - 请求/响应拦截器（token、错误处理）
+   - 所有模块的 API 函数
+
+
+2. 后端需要提供的 API 端点
+
+   主题 CRUD:
+     GET    /api/themes             列表
+     POST   /api/themes             创建
+     PUT    /api/themes/:id         更新
+     DELETE /api/themes/:id         删除（级联删除文档+对话）
+
+   文档管理:
+     GET    /api/documents?themeId=   列表（可按主题筛选）
+     POST   /api/documents/upload     上传文件（multipart/form-data）
+     POST   /api/documents/url        导入网页
+     POST   /api/documents/text       添加文本
+     DELETE /api/documents/:id        删除（清理向量库）
+     GET    /api/documents/:id/status 索引状态轮询
+
+   对话 & RAG 问答:
+     GET    /api/conversations        对话列表
+     GET    /api/conversations/:id    对话详情（含消息）
+     POST   /api/conversations        创建对话
+     DELETE /api/conversations/:id    删除
+     POST   /api/chat                 RAG 问答（建议用 SSE 流式返回）
+
+   设置:
+     GET    /api/settings             获取配置
+     PUT    /api/settings             更新配置
+
+
+3. store/index.ts — 数据层改造
+
+   所有 action 需要改为：先调 API → 再更新本地状态
+
+   - 删除 mockThemes / mockDocuments / mockConversations
+   - 初始化时从 API 加载数据
+   - 每个 CRUD 操作变成异步：addTheme → POST /api/themes → 成功后 set()
+   - 增加 loading / error 状态
+   - 考虑加 persist 中间件持久化到 localStorage
+
+
+4. ChatPage.tsx — 聊天核心改造
+
+   - 删除整个 simulateStreamingResponse() 函数
+   - handleSend() 改为调用 POST /api/chat，传入：
+     {
+       "themeId": 1,
+       "question": "...",
+       "conversationId": 2,
+       "settings": {
+         "llmModel": "deepseek",
+         "topK": 5,
+         "temperature": 0.7
+       }
+     }
+   - 建议 SSE (Server-Sent Events) 流式返回，实现逐字输出效果
+   - 解析后端返回的 sources 引用信息并展示
+
+
+5. DocumentsPage.tsx — 文档上传改造
+
+   - 去掉 beforeUpload={() => false}
+   - 用 FormData 真正上传文件到 POST /api/documents/upload
+   - 索引状态改为轮询 GET /api/documents/:id/status 或 WebSocket 推送
+   - 上传进度条（axios onUploadProgress）
+
+
+6. vite.config.ts — 添加开发代理
+
+   server: {
+     proxy: {
+       '/api': {
+         target: 'http://localhost:8000',  // FastAPI 后端地址
+         changeOrigin: true,
+       }
+     }
+   }
+
+
+三、后端技术栈（SettingsPage 中已暗示）
+----------------------------------------
+
+| 组件               | 说明               |
+|--------------------|--------------------|
+| FastAPI            | Python 后端框架    |
+| ChromaDB           | 向量数据库（本地持久化） |
+| DeepSeek/Qwen/GLM  | LLM API           |
+| bge-large-zh-v1.5  | Embedding 模型     |
+
+
+四、建议的改造顺序
+------------------
+
+1. vite.config.ts 加代理
+2. api.ts 建 API 层
+3. store 改为异步
+4. ChatPage 接入真实 RAG
+5. DocumentsPage 真实上传
+6. 其余页面逐一替换
