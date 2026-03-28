@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { List, Card, Space, Tag, Button, Popconfirm, Typography, Empty, Alert, Spin, message } from 'antd';
+import { Card, Space, Tag, Button, Popconfirm, Typography, Empty, Alert, Spin, Flex, message } from 'antd';
 import { DeleteOutlined, MessageOutlined } from '@ant-design/icons';
 import { useAppStore } from '../store';
 import { useNavigate } from 'react-router';
@@ -89,16 +89,15 @@ export function HistoryPage() {
       ) : sortedConversations.length === 0 ? (
         <Empty description="暂无对话记录" style={{ marginTop: 100 }} />
       ) : (
-        <List
-          grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 2, xl: 3, xxl: 4 }}
-          dataSource={sortedConversations}
-          renderItem={(conversation) => {
+        <Flex gap={16} wrap="wrap">
+          {sortedConversations.map((conversation) => {
             const theme = themes.find((t) => t.id === conversation.themeId);
             return (
-              <List.Item>
-                <Card
-                  hoverable
-                  onClick={() => handleRestoreConversation(conversation.id)}
+              <Card
+                key={conversation.id}
+                style={{ flex: '1 1 280px', maxWidth: 360 }}
+                hoverable
+                onClick={() => handleRestoreConversation(conversation.id)}
                   actions={[
                     <Button
                       key="restore"
@@ -155,10 +154,9 @@ export function HistoryPage() {
                     </Space>
                   </Space>
                 </Card>
-              </List.Item>
             );
-          }}
-        />
+          })}
+        </Flex>
       )}
     </div>
   );
