@@ -15,7 +15,13 @@
       "Bash(uvicorn main:app --host 0.0.0.0 --port 5000 --reload)",
       "Bash(npm run:*)",
       "Bash(start:*)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(.venv/Scripts/python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000)",
+      "Bash(curl:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill:*)",
+      "Bash(.venv/Scripts/python -m uvicorn main:app --host 0.0.0.0 --port 5000)",
+      "Bash(python -m uvicorn main:app --host 0.0.0.0 --port 8000)"
     ]
   }
 }
